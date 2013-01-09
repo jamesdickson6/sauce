@@ -21,15 +21,13 @@ Executables installed:
 ## Usage
 
 ### saucify
-;NOT IMPLEMENTED YET
+**NOT IMPLEMENTED YET**
 
-;Saucify you application
+**Saucify you application**
   cd myCoolApp
   saucify myCoolApp
-This creates a ''.sauce'' directory in the current directory.
-It also creates:
-  .sauce/myCoolApp.sauce
-  .sauce/
+This creates a ''myCoolApp.sauce'' file in the current directory.
+Now open this file and modify it to meet your deployment specific needs.
 
 Nothing is done if '.sauce' already exists
 
@@ -37,8 +35,8 @@ Now configure your application's environment file(s), and add any extra tasks if
 
 
 ### sauce
-This command really just masquerades as ''cap'', 
-It creates tasks based on the .sauce directories it finds beneath the current directory.
+This command really just masquerades as **cap**, 
+It creates tasks based on the *.sauce* files it finds beneath the current directory. It will search 3 levels deep.
 
 ## Recipes
 
