@@ -16,16 +16,21 @@ Executables installed:
 * HighLine
 
 ## Installation
+```sh
+  git clone https://github.com/sixjameses/sauce.git
+  cd sauce
   gem install sauce-0.1.0.gem
-
+```
 ## Usage
 
 ### saucify
 **NOT IMPLEMENTED YET**
 
 **Saucify you application**
+```sh
   cd myCoolApp
   saucify myCoolApp
+```
 This creates a ''myCoolApp.sauce'' file in the current directory.
 Now open this file and modify it to meet your deployment specific needs.
 
@@ -41,5 +46,4 @@ It creates tasks based on the *.sauce* files it finds beneath the current direct
 ## Recipes
 
 ### Grails
-A new standard Grails app recipe
-  load sauce/recipes/grails
+A new standard Grails app recipe...
