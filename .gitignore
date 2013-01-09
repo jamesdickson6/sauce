@@ -1,4 +1,4 @@
-*.gem
+#*.gem
 .DS_Store
 .bundle/*
 Gemfile.lock
