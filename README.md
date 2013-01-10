@@ -19,7 +19,8 @@ Executables installed:
 
 ## Installation
 ```sh
-  wget https://github.com/sixjameses/sauce-0.1.1.gem
+  git clone https://github.com/sixjameses/sauce.git
+  cd sauce
   gem install sauce-0.1.1.gem
 ```
 ## Usage
