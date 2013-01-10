@@ -70,7 +70,7 @@ It creates tasks based on the *.sauce* files it finds beneath the current direct
 Configuring your application and environments is as easy as modifying your *.sauce* file(s) with Capistrano settings and task definitions.
 
 **Example:**
-<pre>
+```rb
   Sauce.brew("yourApp") do |app|
     app.load("some/cool/deployment/recipe")
     app.load("another/cool/recipe")
@@ -86,7 +86,7 @@ Configuring your application and environments is as easy as modifying your *.sau
       # ... and so on and so forth
     end
   end
-</pre>
+```
 
 
 You can *.load()*, define and redefine, an Application as much as you want.  
