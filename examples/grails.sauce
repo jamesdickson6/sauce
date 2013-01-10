@@ -1,0 +1,56 @@
+appname = "yourCoolApp"
+Sauce.brew(appname) do |app|
+  # Load Recipes
+  app.load("standard") # invoke and shell tasks
+  app.load("sauce/recipes/grails_deploy.tasks.rb")
+  # Capistrano Configuration for application
+  app.load do
+    set :application, appname
+    # SSH and SCM access
+    set :scm, :git
+    
+    
+  end
+
+  # Local environment
+  app.environment("local") do |env|
+    env.load do
+      # Define Servers...
+      server "127.0.0.1", :web, :app, :db, {:primary_web=>true, :primary_db => true}
+      
+      # Define/Override tasks...
+
+    end
+  end
+
+  # Staging environment
+  app.environment("staging") do |env|
+    env.load do
+      # Servers
+      server "staging.#{appname}.com", :web, :app, :db, {:primary_web=>true, :primary_db => true}
+
+      # SSH and SCM access
+            
+      # Extra/Overridden tasks...
+
+    end
+  end
+
+  # Production environment
+  app.environment("production") do |env|
+    env.load do
+      # Servers
+      server "web1.#{appname}.com", :web, :app, :db, {:primary_web=>true, :primary_db => true}
+      server "web2.#{appname}.com", :web, :app, :db, {}
+      server "db1.#{appname}.com", :web, :app, :db, {:primary_db => true}
+      server "db2.#{appname}.com", :web, :app, :db, {}
+
+      # SSH and SCM access
+            
+      # Extra/Overridden tasks...
+
+    end
+  end
+
+end
+

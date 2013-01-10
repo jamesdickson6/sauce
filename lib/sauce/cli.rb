@@ -9,12 +9,13 @@ module Sauce
   # and preserve its command-line semantics.
   class CLI < Capistrano::CLI
 
-    # could override this.. or not use it as we are now...
+    # could override this.. or not use it (not using it now)
     def instantiate_configuration(options={}) #:nodoc:
       Capistrano::Configuration.new(options)
     end
 
-    # overridden...
+    # overridden... 
+    # JD: clean this up later..
     def execute!
       Sauce.serve # load sauce tasks by default
       # OR ...Are we loading a specific app:env ?
@@ -22,12 +23,15 @@ module Sauce
       if first_arg and first_arg =~ /\w+:\w+/
         ar = first_arg.split(":")
         appname, envname = ar[0], ar[1]
-        if Sauce[appname] && Sauce[appname][envname]
+        # Executing a task within an app:env ?
+        if Sauce[appname] && Sauce[appname][envname] && ar[2]
+          puts "  Serving #{appname}:#{envname} to Capistrano"
           Sauce[appname][envname].serve
         end
-        puts "Served #{appname}:#{envname} !!"
       end
+
       config = Capistrano::Configuration.instance # this is set via the serve methods above
+
 #      config = instantiate_configuration(options)
       config.debug = options[:debug]
       config.dry_run = options[:dry_run]

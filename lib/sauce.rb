@@ -1,18 +1,29 @@
-require 'rubygems'
 require 'capistrano'
-
+require 'forwardable'
+require 'sauce/cookable'
 # Cook application recipes and serve them to Capistrano
 module Sauce
   # extension for finding configuration files
   SAUCE_FILE_EXTENSION = ".sauce".freeze
-  SAUCE_FILE_DEPTH = 3
+  SAUCE_FILE_DEPTH = 2.freeze
   # Load paths for sauce recipes
-  RECIPES_LOAD_PATHS = [File.expand_path(File.join(File.dirname(__FILE__))),
+  RECIPE_LOAD_PATHS = [File.expand_path(File.join(File.dirname(__FILE__))),
                         File.expand_path(File.join(File.dirname(__FILE__), "sauce/recipes"))].freeze
   # standard recipes to load
   SAUCE_RECIPES = ["sauce.tasks.rb"].freeze
 
+  # Indicates a problem with sauce configuration
   class ConfigError < StandardError; end
+
+  # holds current Sauce configuration, rarely will you need more more than one of these
+  def instance
+    Thread.current[:sauce_configuration] ||= Configuration.new
+  end
+
+  # some friendly module methods, delegated to current config
+  extend Forwardable
+  def_delegators :instance, :applications, :[], :application, :brew, :cook, :serve
+  module_function :instance, :applications, :[], :application, :brew, :cook, :serve
 
   # find sauce files, avoid looking too deep
   def find_sauce_files(cwd=Dir.pwd, depth=SAUCE_FILE_DEPTH)
@@ -26,18 +37,29 @@ module Sauce
   def new_capistrano_config(opts={})
     # JD: Should maybe parse ARGV here?
     c = Capistrano::Configuration.new(opts)
-    RECIPES_LOAD_PATHS.each {|d| c.load_paths << d }
+    RECIPE_LOAD_PATHS.each {|d| c.load_paths << d }
     return c
   end
 
+  # Capistrano::Configuration makes this method private..so here it is
+  def find_capistrano_recipe(conf, file)
+    conf.load_paths.each do |path|
+      ["", ".rb"].each do |ext|
+        name = File.join(path, "#{file}#{ext}")
+        return name if File.file?(name)
+      end
+    end
+    raise LoadError.new("no such file to load -- #{file}")
+  end
+  
   # load tasks block within a capistrano configuration, under a certain namespace
   #  inject_capistrano_config(config, "coolApp:env1", :file => "some_recipe") 
   #  inject_capistrano_config(config, "coolApp:env1", :proc => some_proc)
   # JD: recursive solution would be cooler
-  def inject_capistrano_config(config, namespaces, opts={})
-    raise ArgumentError.new("Expected a Capistrano::Configuration and got #{config.class} instead") unless config.is_a?(Capistrano::Configuration)
+  def inject_capistrano_config(conf, namespaces, opts={})
+    raise ArgumentError.new("Expected a Capistrano::Configuration and got #{conf.class} instead") unless conf.is_a?(Capistrano::Configuration)
     namespaces = namespaces.is_a?(Array) ? namespaces.dup : namespaces.to_s.split(":")
-    cur_ns = config
+    cur_ns = conf
     # puts "Building Capistrano Config for namespace #{namespaces.join(':')}"
     while (!namespaces.empty?)
       ns = namespaces.shift
@@ -52,69 +74,51 @@ module Sauce
     if opts[:proc]
       cur_ns.namespace(ns.to_sym, &opts[:proc]) # add block to namespace
     elsif opts[:file]
-      recipe_filepath = nil
-      config.load_paths.each do |path|
-        ["", ".rb"].each do |ext|
-          name = File.join(path, "#{opts[:file]}#{ext}")
-          if File.file?(name)
-            recipe_filepath = name
-          end
-        end
-      end
-      raise LoadError, "no such file to load -- #{file}" if !recipe_filepath
-      cur_ns.instance_eval(File.read(recipe_filepath))
+      recipe_file = find_capistrano_recipe(conf, opts[:file])
+      cur_ns.instance_eval(File.read(recipe_file))
     end
-    return config
+    return conf
   end
 
-  module_function :find_sauce_files, :new_capistrano_config, :inject_capistrano_config
+  module_function :find_sauce_files, :new_capistrano_config, :inject_capistrano_config, :find_capistrano_recipe
 
-  def instance
-    Thread.current[:sauce_configuration] ||= Configuration.new
-  end
-
-  # some friendly module methods, delegated to current config
-  def applications; instance.applications; end
-  def [](appname); instance[appname]; end
-  def application(appname, &block); instance.brew(appname, &block); end
-  def brew(appname, &block); instance.application(appname, &block); end # alias for application
-  def cook; instance.cook; end
-  def serve; instance.serve; end
-  module_function :instance, :applications, :[], :application, :brew, :cook, :serve
-
+  
   # container for saucified applications
+  #
   class Configuration
+    include Cookable
     attr_reader :applications, :sauce_files
-    attr_reader :capistrano_config
+
+    def namespace
+      ""
+    end
 
     def initialize(opts={})
       @opts = opts || {}
       @applications = []
-      @capistrano_config = Sauce.new_capistrano_config()
       # find saucified apps under current directory by default
       @opts[:dir] ||= Dir.pwd
       @sauce_files = Sauce.find_sauce_files(@opts[:dir])
       return self
     end
 
-    # load sauce files for this configuration and generate capistrano tasks
+    alias :super_cook :cook
     def cook
+      # define applications via .sauce files
       @sauce_files.each do |f|
         #puts "loading sauce: #{f}"
-        load f #ruby's plain old load method to eval .sauce files
+        Kernel.load f #ruby's plain old load method to eval .sauce files
       end
-      # load standard recipes
-      SAUCE_RECIPES.each { |f| @capistrano_config.load(:file => f) }
-      # Cook the application environments
-      applications.each {|app| app.environments.each {|env| env.cook } }
-      @cooked = true
-      self
-    end
-
-    # serve this Configuration to Capistrano
-    def serve
-      cook if !@cooked
-      Capistrano::Configuration.instance = @capistrano_config
+      # load default sauce recipes (for inspecting applications)
+      self.load(SAUCE_RECIPES)
+      # cook application environments
+      applications.each do |app|
+        app.cook
+        app.environments.each do |env|
+          env.cook
+        end
+      end
+      super_cook
     end
 
     # fetch application by name
@@ -141,26 +145,20 @@ module Sauce
 
 
   class Application
-    attr_reader :name, :environments, :cap_procs, :cap_recipes
+    include Cookable
+    attr_reader :name, :environments
+
+    def namespace
+      "#{name}"
+    end
+
     # appname is the name of the application
     # block is curried to Capistrano
     def initialize(appname)
       @name = appname
       @environments = []
-      @cap_recipes = []
-      @cap_procs = []
       #Sauce.add_application(self) # register application
       self
-    end
-
-    # store recipe file for cooking later
-    def recipe(filename)
-      @cap_recipes << filename unless @cap_recipes.include?(filename)
-    end
-
-    # store block for cooking later
-    def capistrano(&block)
-      @cap_procs << block if block
     end
 
     # fetch environment by name
@@ -182,8 +180,13 @@ module Sauce
     alias :environment :add_environment # config friendly alias
 
     class Environment
-      attr_reader :name, :application, :cap_recipes, :cap_procs
-      attr_reader :capistrano_config
+      include Cookable
+      attr_reader :application, :name
+
+      def namespace
+        "#{application.name}:#{name}"
+      end
+
       # app can be an Application or the name of an Application
       # envname is a name like local,staging,production
       # block is curried to capistrano_config and should contain tasks definitions 'n such
@@ -197,50 +200,12 @@ module Sauce
           @application = app
         end
         @name = envname
-        @capistrano_config = Sauce.new_capistrano_config()
-        @cap_recipes = []
-        @cap_procs = []
         self
       end
 
-      # store recipe file for cooking later
-      def recipe(filename)
-        @cap_recipes << filename unless @cap_recipes.include?(filename)
-      end
-
-      # store block for cooking later
-      def capistrano(&block)
-        @cap_procs << block if block
-      end
-
-
-      # cook Capistrano configuration/recipes for this environment
-      def cook
-        ns = "#{application.name}:#{name}"
-        # load Application recipes
-        application.cap_recipes.each do |cap_recipe|
-          Sauce.inject_capistrano_config(@capistrano_config, ns, :file => cap_recipe)
-        end
-        # load Application configs
-        application.cap_procs.each do |cap_block|
-          Sauce.inject_capistrano_config(@capistrano_config, ns, :proc => cap_block)
-        end
-        # load Environment recipes
-        @cap_recipes.each do |cap_recipe|
-          Sauce.inject_capistrano_config(@capistrano_config, ns, :file => cap_recipe)
-        end
-        # load Environment configs
-        @cap_procs.each do |cap_block|
-          Sauce.inject_capistrano_config(@capistrano_config, ns, :proc => cap_block)
-        end
-        @cooked = true
-        @capistrano_config
-      end
-
-      # serve this Configuration to Capistrano
-      def serve
-        cook if !@cooked
-        Capistrano::Configuration.instance = @capistrano_config
+      # overridden to include application recipes as well
+      def recipes
+        (@application.recipes + @recipes).uniq
       end
 
     end
