@@ -95,7 +95,7 @@ you could also define several applications inside a single *.sauce* file.
 
 The name of your *.sauce* file is not important.
 
-View some example *.sauce* configurations [here](tree/master/examples).
+View some example *.sauce* configurations [here](sauce/tree/master/examples).
 
 For more information on configuring Capistrano, see:
 * https://github.com/capistrano/capistrano/wiki/2.x-Significant-Configuration-Variables
@@ -104,7 +104,7 @@ For more information on configuring Capistrano, see:
 ## Recipes
 Sauce provides some recipes for your deployment needs!
 
-Check them out [here](tree/master/lib/sauce/recipes).
+Check them out [here](sauce/tree/master/lib/sauce/recipes).
 
 ### grails_deploy.tasks.rb
 A new standard Grails deployment recipe...
