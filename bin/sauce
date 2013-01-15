@@ -1,6 +1,5 @@
 #!/usr/bin/env ruby
 require 'rubygems'
 require 'sauce'
-Sauce.cook and Sauce.serve
 require 'sauce/cli'
 Sauce::CLI.execute

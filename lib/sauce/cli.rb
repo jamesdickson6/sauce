@@ -23,8 +23,10 @@ module Sauce
       if first_arg and first_arg =~ /\w+:\w+/
         ar = first_arg.split(":")
         appname, envname = ar[0], ar[1]
-        # Executing a task within an app:env ?
-        if Sauce[appname] && Sauce[appname][envname] && ar[2]
+        # Executing a task within an app:env:sometask
+        # or app:env -T
+        if Sauce[appname] && Sauce[appname][envname] && 
+            (ar[2] || (ARGV.include?("-T") || ARGV.include?("-vT")))
           puts "  Serving #{appname}:#{envname} to Capistrano"
           Sauce[appname][envname].serve
         end

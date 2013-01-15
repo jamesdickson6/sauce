@@ -1,5 +1,4 @@
-# Capistrano Tasks for a Grails Deployment
-
+# This  __FILE__ == require 'capistrano/recipes/deploy'
 require 'benchmark'
 require 'yaml'
 require 'shellwords'

@@ -61,9 +61,9 @@ module Sauce
   # JD: recursive solution would be cooler
   def inject_capistrano_config(conf, namespaces, opts={})
     raise ArgumentError.new("Expected a Capistrano::Configuration and got #{conf.class} instead") unless conf.is_a?(Capistrano::Configuration)
+    # build namespace
     namespaces = namespaces.is_a?(Array) ? namespaces.dup : namespaces.to_s.split(":")
     cur_ns = conf
-    # puts "Building Capistrano Config for namespace #{namespaces.join(':')}"
     while (!namespaces.empty?)
       ns = namespaces.shift
       next if !ns || ns.to_s.strip == ""
@@ -75,7 +75,7 @@ module Sauce
 
     # inject recipe/proc
     if opts[:proc]
-      cur_ns.namespace(ns.to_sym, &opts[:proc]) # add block to namespace
+      cur_ns.instance_eval(&opts[:proc]) # add block to namespace
     elsif opts[:file]
       recipe_file = find_capistrano_recipe(conf, opts[:file])
       cur_ns.instance_eval(File.read(recipe_file))

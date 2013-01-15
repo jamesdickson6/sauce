@@ -10,12 +10,11 @@ desc "View all saucified applications and environments"
 task :list do
   num_apps = Sauce.applications.length
   if num_apps == 0
-    puts "Found 0 applications with sauce...  Check out saucify..."
+    logger.info "Found 0 applications with sauce...  Check out saucify..."
   else
-    puts "Found #{num_apps} application#{num_apps==1 ? '':'s'} with sauce!"
+    logger.info "Found #{num_apps} application#{num_apps==1 ? '':'s'} with sauce!"
     Sauce.applications.each do |app|
       top.send(app.name).send(:view)
-#      puts "\n"
     end
   end
 end
@@ -42,16 +41,17 @@ Sauce.applications.each do |app|
         end
         task :view do
           servers = env.cap_config.find_servers
-          puts ' '*4+"#{env.name} (#{servers.length} server#{servers.length==1 ? '':'s'})"
+          logger.info ' '*4+"#{env.name} (#{servers.length} server#{servers.length==1 ? '':'s'})"
           servers.each do |s| 
-            puts ' '*6+"#{s.host}#{s.port ? ':'+s.port : ''} #{s.options.empty? ? '' : '  options: '+s.options.inspect}"
+            logger.info ' '*6+"#{s.host}#{s.port ? ':'+s.port : ''} #{s.options.empty? ? '' : '  options: '+s.options.inspect}"
           end
         end
 
       end
 
-    end
+    end # end namespace env.name
 
-  end
+  end # end namespace app.name
 
-end
+end # end each app
+

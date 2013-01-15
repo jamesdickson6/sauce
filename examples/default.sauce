@@ -2,53 +2,54 @@ appname = "yourCoolApp"
 Sauce.brew(appname) do |app|
   # Load Recipes
   app.load("standard") # invoke and shell tasks
-  app.load("sauce/recipes/grails_deploy.tasks.rb")
+  app.load("sauce/recipes/app.tasks.rb")
   # Capistrano Configuration for application
   app.load do
     set :application, appname
-    # SSH and SCM access
     set :scm, :git
-    
-    
+    set :repository, "http://github.com/yourCompany/#{appname}"
+    #set :scm_user, :some_user
+    #set :scm_password, :some_password
+    set :branch, "master"
+    set :deploy_via, "remote_cache"
   end
 
-  # Local environment
+  # LOCAL
   app.environment("local") do |env|
     env.load do
-      # Define Servers...
+      # Servers: name, [roles], {opts}
       server "127.0.0.1", :web, :app, :db, {:primary_web=>true, :primary_db => true}
-      
-      # Define/Override tasks...
-
+      # Configuration...
+      set :branch, "development"
     end
   end
 
-  # Staging environment
+  # QA
+  app.environment("qa") do |env|
+    env.load do
+      server "qa.#{appname}.com", :web, :app, :db, :job, {:primary_web=>true, :primary_db => true}
+      set :branch, "development"
+    end
+  end
+
+  # STAGING
   app.environment("staging") do |env|
     env.load do
-      # Servers
-      server "staging.#{appname}.com", :web, :app, :db, {:primary_web=>true, :primary_db => true}
-
-      # SSH and SCM access
-            
-      # Extra/Overridden tasks...
-
+      # Servers: name, [roles], {opts}
+      server "staging.#{appname}.com", :web, :app, :db, :job, {:primary_web=>true, :primary_db => true}
+      set :branch, "master"
     end
   end
 
-  # Production environment
+  # PRODUCTION
   app.environment("production") do |env|
     env.load do
       # Servers
-      server "web1.#{appname}.com", :web, :app, :db, {:primary_web=>true, :primary_db => true}
-      server "web2.#{appname}.com", :web, :app, :db, {}
-      server "db1.#{appname}.com", :web, :app, :db, {:primary_db => true}
-      server "db2.#{appname}.com", :web, :app, :db, {}
-
-      # SSH and SCM access
-            
-      # Extra/Overridden tasks...
-
+      server "web1.#{appname}.com", :web, :app, {:primary_web=>true, :primary_db => true}
+      server "web2.#{appname}.com", :web, :app, {}
+      server "job1.#{appname}.com", :job, {}
+      server "db1.#{appname}.com", :db, {:primary_db => true}
+      server "db2.#{appname}.com", :db, {}
     end
   end
 
