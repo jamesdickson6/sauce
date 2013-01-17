@@ -1,17 +1,19 @@
 appname = "yourCoolApp"
 Sauce.brew(appname) do |app|
-  # Load Recipes
-  app.load("standard") # invoke and shell tasks
-  app.load("sauce/recipes/app.tasks.rb")
-  # Capistrano Configuration for application
   app.load do
+    # Load Recipes
+    load("capistrano/recipes/standard") # invoke and shell tasks
+    load("sauce/recipes/app/base") # default deployment tasks
+    load("sauce/recipes/setup") # default environment setup tasks
+    # Configure application...
     set :application, appname
-    set :scm, :git
-    set :repository, "http://github.com/yourCompany/#{appname}"
+    set :scm, "git"
+    set :repository, "git@github.com:yourCompany/#{appname}.git"
+    set(:deploy_to) { "/home/#{fetch(:user)}/kitchen/#{appname}" } # Linux   
     #set :scm_user, :some_user
     #set :scm_password, :some_password
-    set :branch, "master"
-    set :deploy_via, "remote_cache"
+    _cset :branch, "master"
+    _cset :deploy_via, "remote_cache"
   end
 
   # LOCAL
@@ -19,16 +21,7 @@ Sauce.brew(appname) do |app|
     env.load do
       # Servers: name, [roles], {opts}
       server "127.0.0.1", :web, :app, :db, {:primary_web=>true, :primary_db => true}
-      # Configuration...
-      set :branch, "development"
-    end
-  end
-
-  # QA
-  app.environment("qa") do |env|
-    env.load do
-      server "qa.#{appname}.com", :web, :app, :db, :job, {:primary_web=>true, :primary_db => true}
-      set :branch, "development"
+      # Configure environment...
     end
   end
 
@@ -37,7 +30,7 @@ Sauce.brew(appname) do |app|
     env.load do
       # Servers: name, [roles], {opts}
       server "staging.#{appname}.com", :web, :app, :db, :job, {:primary_web=>true, :primary_db => true}
-      set :branch, "master"
+      # Configure environment...
     end
   end
 
@@ -50,6 +43,7 @@ Sauce.brew(appname) do |app|
       server "job1.#{appname}.com", :job, {}
       server "db1.#{appname}.com", :db, {:primary_db => true}
       server "db2.#{appname}.com", :db, {}
+      # Configure environment...
     end
   end
 

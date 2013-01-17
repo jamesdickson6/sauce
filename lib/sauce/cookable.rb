@@ -57,23 +57,33 @@ module Sauce
         end
         alias :add_recipe :load
 
-        # load configuration
+        # load capistrano configuration with recipes
         def cook
+          if defined?(self.class::STANDARD_RECIPES)
+            self.class::STANDARD_RECIPES.each do |recipe|
+              if recipe.is_a?(Proc)
+                self.cap_config.load(:proc => recipe)
+              else # assume recipe filename
+                self.cap_config.load(:file => recipe)
+              end
+            end
+          end          
           self.recipes.each do |recipe|
             if recipe.is_a?(Proc)
-              Sauce.inject_capistrano_config(self.cap_config, self.namespace, :proc => recipe)
+              self.cap_config.load(:proc => recipe)
             else # assume recipe filename
-              Sauce.inject_capistrano_config(self.cap_config, self.namespace, :file => recipe)
+              self.cap_config.load(:file => recipe)
             end
           end
           @cooked = true
           self.cap_config
         end
 
-        # serve this Configuration to Capistrano
+        # serve it up
         def serve
           cook unless @cooked
-          Capistrano::Configuration.instance = self.cap_config
+          Sauce.current = self
+          self.cap_config
         end
 
       end

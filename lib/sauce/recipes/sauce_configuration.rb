@@ -1,6 +1,6 @@
-require 'sauce'
-# Capistrano tasks for a Sauce configuration
+# Standard tasks for a cooked Sauce::Configuration 
 # Provides inspection of the saucified applications and their environments
+require 'sauce'
 
 task :default do
   list
@@ -10,7 +10,7 @@ desc "View all saucified applications and environments"
 task :list do
   num_apps = Sauce.applications.length
   if num_apps == 0
-    logger.info "Found 0 applications with sauce...  Check out saucify..."
+    logger.important "Found 0 applications with sauce...  Try saucify..."
   else
     logger.info "Found #{num_apps} application#{num_apps==1 ? '':'s'} with sauce!"
     Sauce.applications.each do |app|
@@ -20,7 +20,6 @@ task :list do
 end
 
 Sauce.applications.each do |app|
-
   namespace app.name do
 
     desc "View all #{app.name} environments details"
@@ -41,9 +40,18 @@ Sauce.applications.each do |app|
         end
         task :view do
           servers = env.cap_config.find_servers
-          logger.info ' '*4+"#{env.name} (#{servers.length} server#{servers.length==1 ? '':'s'})"
-          servers.each do |s| 
-            logger.info ' '*6+"#{s.host}#{s.port ? ':'+s.port : ''} #{s.options.empty? ? '' : '  options: '+s.options.inspect}"
+          # Capistrano doesnt provide ServerDefinition.new.roles, weak.
+          host_roles = {}
+          env.cap_config.roles.each {|role_name, role|
+            role.servers.each {|s| 
+              host_roles["#{s.host}:#{s.port}"] ||= []; 
+              host_roles["#{s.host}:#{s.port}"] << role_name
+            }
+          }
+          logger.info "#{env.name} (#{servers.length} server#{servers.length==1 ? '':'s'})"
+          servers.each do |s|
+            roles_str = (host_roles["#{s.host}:#{s.port}"] || []).join(", ")
+            logger.info "#{s.host}#{s.port ? ':'+s.port.to_s : ''}  [#{roles_str}]  #{s.options.empty? ? '' : s.options.inspect}"
           end
         end
 

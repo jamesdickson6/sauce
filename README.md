@@ -1,4 +1,5 @@
 
+
 ## Sauce
 A Ruby Gem that's objective is to make installing and deploying lots applications easy.
 
@@ -57,7 +58,7 @@ It creates tasks based on the *.sauce* files it finds beneath the current direct
 
 **View available tasks for a given application and environment**
 ```sh
-  sauce yourApp:env -T
+  sauce -T yourApp:env
 ```
 
 **Execute task for a given application and environment**
@@ -72,9 +73,10 @@ Configuring your application and environments is as easy as modifying your *.sau
 **Example:**
 ```rb
   Sauce.brew("yourApp") do |app|
-    app.load("some/cool/deployment/recipe")
-    app.load("another/cool/recipe")
     app.load do
+      # Recipes
+      load("some/cool/deployment/recipe")
+      load("another/cool/recipe")
       # put your application specific Capistrano configuration and task definitions here
     end
     app.environment("env1") do |env|

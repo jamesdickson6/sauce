@@ -1,4 +1,4 @@
-# This  __FILE__ == require 'capistrano/recipes/deploy'
+# This  __FILE__ == load('capistrano/recipes/deploy')
 require 'benchmark'
 require 'yaml'
 require 'shellwords'

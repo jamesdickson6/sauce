@@ -6,6 +6,7 @@ module Sauce
   # container for saucified applications
   #
   class Configuration
+    STANDARD_RECIPES = ["sauce/recipes/sauce_configuration"].freeze
     include Cookable
     attr_reader :applications, :sauce_files
 
@@ -29,9 +30,7 @@ module Sauce
         #puts "loading sauce: #{f}"
         Kernel.load f #ruby's plain old load method to eval .sauce files
       end
-      # load default sauce recipes (for inspecting applications)
-      self.load(SAUCE_RECIPES)
-      # cook application environments
+      # cook containing cookables
       applications.each do |app|
         app.cook
         app.environments.each do |env|
@@ -41,10 +40,19 @@ module Sauce
       super_cook
     end
 
-    # fetch application by name
-    def [](appname)
-      appname = appname.name if appname.is_a?(Application)
-      @applications.find {|a| a.name == appname.to_s }
+    # fetch cookable application/environment by namespace
+    # E.g. ["appname"] or ["appname:envname"]
+    def [](ns)
+      namespaces = ns.to_s.split(":").compact
+      rtn = @applications.find {|a| a.name == namespaces.shift }
+      begin
+        while (!namespaces.empty?)
+          rtn = rtn[namespaces.shift]
+        end
+      rescue
+        return nil
+      end
+      return rtn
     end
 
     # Create/Extend an Application in this configuration

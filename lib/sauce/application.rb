@@ -4,6 +4,7 @@ module Sauce
   # cookable application and its environments
   #
   class Application
+    STANDARD_RECIPES = ["sauce/recipes/application"].freeze
     include Cookable
     attr_reader :name, :environments
 
@@ -40,6 +41,7 @@ module Sauce
 
 
     class Environment
+      STANDARD_RECIPES = ["sauce/recipes/application_environment"].freeze
       include Cookable
       attr_reader :application, :name
 
