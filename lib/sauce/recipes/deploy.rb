@@ -1,15 +1,9 @@
-# This  __FILE__ == load('capistrano/recipes/deploy')
-require 'benchmark'
+# Tasks for all types of Applications
 require 'yaml'
 require 'shellwords'
 require 'capistrano/recipes/deploy/scm'
 require 'capistrano/recipes/deploy/strategy'
 
-def _cset(name, *args, &block)
-  unless exists?(name)
-    set(name, *args, &block)
-  end
-end
 
 # =========================================================================
 # These variables MUST be set in the client capfiles. If they are not set,
@@ -29,9 +23,6 @@ _cset :deploy_via, :checkout
 
 _cset(:deploy_to) { "/u/apps/#{application}" }
 _cset(:revision)  { source.head }
-
-_cset :rails_env, "production"
-_cset :rake, "rake"
 
 # =========================================================================
 # These variables should NOT be changed unless you are very confident in
@@ -74,110 +65,6 @@ _cset(:run_method)        { fetch(:use_sudo, true) ? :sudo : :run }
 # standalone case, or during deployment.
 _cset(:latest_release) { exists?(:deploy_timestamped) ? release_path : current_release }
 
-# =========================================================================
-# These are helper methods that will be available to your recipes.
-# =========================================================================
-
-# Checks known version control directories to intelligently set the version 
-# control in-use. For example, if a .svn directory exists in the project, 
-# it will set the :scm variable to :subversion, if a .git directory exists 
-# in the project, it will set the :scm variable to :git and so on. If no 
-# directory is found, it will default to :git.
-def scm_default
-  if File.exist? '.git'
-    :git
-  elsif File.exist? '.accurev'
-    :accurev
-  elsif File.exist? '.bzr'
-    :bzr
-  elsif File.exist? '.cvs'
-    :cvs
-  elsif File.exist? '_darcs'
-    :darcs
-  elsif File.exist? '.hg'
-    :mercurial
-  elsif File.exist? '.perforce'
-    :perforce
-  elsif File.exist? '.svn'
-    :subversion
-  else
-    :none
-  end
-end
-
-# Auxiliary helper method for the `deploy:check' task. Lets you set up your
-# own dependencies.
-def depend(location, type, *args)
-  deps = fetch(:dependencies, {})
-  deps[location] ||= {}
-  deps[location][type] ||= []
-  deps[location][type] << args
-  set :dependencies, deps
-end
-
-# Temporarily sets an environment variable, yields to a block, and restores
-# the value when it is done.
-def with_env(name, value)
-  saved, ENV[name] = ENV[name], value
-  yield
-ensure
-  ENV[name] = saved
-end
-
-# logs the command then executes it locally.
-# returns the command output as a string
-def run_locally(cmd)
-  logger.trace "executing locally: #{cmd.inspect}" if logger
-  output_on_stdout = nil
-  elapsed = Benchmark.realtime do
-    output_on_stdout = `#{cmd}`
-  end
-  if $?.to_i > 0 # $? is command exit code (posix style)
-    raise Capistrano::LocalArgumentError, "Command #{cmd} returned status code #{$?}"
-  end
-  logger.trace "command finished in #{(elapsed * 1000).round}ms" if logger
-  output_on_stdout
-end
-
-
-# If a command is given, this will try to execute the given command, as
-# described below. Otherwise, it will return a string for use in embedding in
-# another command, for executing that command as described below.
-#
-# If :run_method is :sudo (or :use_sudo is true), this executes the given command
-# via +sudo+. Otherwise is uses +run+. If :as is given as a key, it will be
-# passed as the user to sudo as, if using sudo. If the :as key is not given,
-# it will default to whatever the value of the :admin_runner variable is,
-# which (by default) is unset.
-#
-# THUS, if you want to try to run something via sudo, and what to use the
-# root user, you'd just to try_sudo('something'). If you wanted to try_sudo as
-# someone else, you'd just do try_sudo('something', :as => "bob"). If you
-# always wanted sudo to run as a particular user, you could do 
-# set(:admin_runner, "bob").
-def try_sudo(*args)
-  options = args.last.is_a?(Hash) ? args.pop : {}
-  command = args.shift
-  raise ArgumentError, "too many arguments" if args.any?
-
-  as = options.fetch(:as, fetch(:admin_runner, nil))
-  via = fetch(:run_method, :sudo)
-  if command
-    invoke_command(command, :via => via, :as => as)
-  elsif via == :sudo
-    sudo(:as => as)
-  else
-    ""
-  end
-end
-
-# Same as sudo, but tries sudo with :as set to the value of the :runner
-# variable (which defaults to "app").
-def try_runner(*args)
-  options = args.last.is_a?(Hash) ? args.pop : {}
-  args << options.merge(:as => fetch(:runner, "app"))
-  try_sudo(*args)
-end
 
 # =========================================================================
 # These are the tasks that are available to help with deploying web apps,
@@ -195,6 +82,45 @@ namespace :deploy do
   task :default do
     update
     restart
+  end
+
+  desc <<-DESC
+    Test deployment dependencies. Checks things like directory permissions, \
+    necessary utilities, and so forth, reporting on the things that appear to \
+    be incorrect or missing. This is good for making sure a deploy has a \
+    chance of working before you actually run `cap deploy'.
+
+    You can define your own dependencies, as well, using the `depend' method:
+
+      depend :remote, :gem, "tzinfo", ">=0.3.3"
+      depend :local, :command, "svn"
+      depend :remote, :directory, "/u/depot/files"
+  DESC
+  task :check, :except => { :no_release => true } do
+    dependencies = strategy.check!
+
+    other = fetch(:dependencies, {})
+    other.each do |location, types|
+      types.each do |type, calls|
+        if type == :gem
+          dependencies.send(location).command(fetch(:gem_command, "gem")).or("`gem' command could not be found. Try setting :gem_command")
+        end
+
+        calls.each do |args|
+          dependencies.send(location).send(type, *args)
+        end
+      end
+    end
+
+    if dependencies.pass?
+      puts "You appear to have all necessary dependencies installed"
+    else
+      puts "The following dependencies failed. Please check them and try again:"
+      dependencies.reject { |d| d.pass? }.each do |d|
+        puts "--> #{d.message}"
+      end
+      abort
+    end
   end
 
   desc <<-DESC
@@ -279,7 +205,7 @@ namespace :deploy do
                      "mkdir -p -- #{escaped_release}/#{dir.slice(0..(dir.rindex('/'))).shellescape}"]
       else
         commands << "rm -rf -- #{escaped_release}/#{d}"
-  		end
+      end
       commands << "ln -s -- #{shared_path}/#{dir.split('/').last.shellescape} #{escaped_release}/#{d}"
     end
 
@@ -400,35 +326,6 @@ namespace :deploy do
     end
   end
 
-  desc <<-DESC
-    Run the migrate rake task. By default, it runs this in most recently \
-    deployed version of the app. However, you can specify a different release \
-    via the migrate_target variable, which must be one of :latest (for the \
-    default behavior), or :current (for the release indicated by the \
-    `current' symlink). Strings will work for those values instead of symbols, \
-    too. You can also specify additional environment variables to pass to rake \
-    via the migrate_env variable. Finally, you can specify the full path to the \
-    rake executable by setting the rake variable. The defaults are:
-
-      set :rake,           "rake"
-      set :rails_env,      "production"
-      set :migrate_env,    ""
-      set :migrate_target, :latest
-  DESC
-  task :migrate, :roles => :db, :only => { :primary => true } do
-    rake = fetch(:rake, "rake")
-    rails_env = fetch(:rails_env, "production")
-    migrate_env = fetch(:migrate_env, "")
-    migrate_target = fetch(:migrate_target, :latest)
-
-    directory = case migrate_target.to_sym
-      when :current then current_path
-      when :latest  then latest_release
-      else raise ArgumentError, "unknown migration target #{migrate_target.inspect}"
-      end
-
-    run "cd #{directory} && #{rake} RAILS_ENV=#{rails_env} #{migrate_env} db:migrate"
-  end
 
   desc <<-DESC
     Deploy and run pending migrations. This will work similarly to the \
@@ -463,45 +360,6 @@ namespace :deploy do
         File.join(releases_path, release) }.join(" ")
 
       try_sudo "rm -rf #{directories}"
-    end
-  end
-
-  desc <<-DESC
-    Test deployment dependencies. Checks things like directory permissions, \
-    necessary utilities, and so forth, reporting on the things that appear to \
-    be incorrect or missing. This is good for making sure a deploy has a \
-    chance of working before you actually run `cap deploy'.
-
-    You can define your own dependencies, as well, using the `depend' method:
-
-      depend :remote, :gem, "tzinfo", ">=0.3.3"
-      depend :local, :command, "svn"
-      depend :remote, :directory, "/u/depot/files"
-  DESC
-  task :check, :except => { :no_release => true } do
-    dependencies = strategy.check!
-
-    other = fetch(:dependencies, {})
-    other.each do |location, types|
-      types.each do |type, calls|
-        if type == :gem
-          dependencies.send(location).command(fetch(:gem_command, "gem")).or("`gem' command could not be found. Try setting :gem_command")
-        end
-
-        calls.each do |args|
-          dependencies.send(location).send(type, *args)
-        end
-      end
-    end
-
-    if dependencies.pass?
-      puts "You appear to have all necessary dependencies installed"
-    else
-      puts "The following dependencies failed. Please check them and try again:"
-      dependencies.reject { |d| d.pass? }.each do |d|
-        puts "--> #{d.message}"
-      end
-      abort
     end
   end
 

@@ -22,7 +22,7 @@ Executables installed:
 ```sh
   git clone https://github.com/sixjameses/sauce.git
   cd sauce
-  gem install sauce-0.1.1.gem
+  gem install sauce-1.0.0.gem
 ```
 ## Usage
 
@@ -108,5 +108,21 @@ Sauce provides some recipes for your deployment needs!
 
 Check them out [here](sauce/tree/master/lib/sauce/recipes).
 
-### grails_deploy.tasks.rb
-A new standard Grails deployment recipe...
+## Sauce::Software
+There's lots more to write here...
+
+Inside your .sauce files and/or recipes, you do things like:
+```rb
+
+nginx = Sauce::Software.new("nginx", self)
+
+task :restart_web, :roles => :web do
+  nginx.installed? or abort("oh no, no nginx installed!")
+  nginx.restart
+end
+```
+
+Sauce::Software can be used independently of *sauce*, in plain old Capistrano.  Add this to your Capfile:
+```rb
+require 'sauce/software'
+```

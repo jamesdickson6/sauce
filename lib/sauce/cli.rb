@@ -1,4 +1,5 @@
 require 'sauce'
+require 'sauce/version'
 require 'capistrano/cli/ui'
 module Sauce
   # sauce command-line
@@ -8,7 +9,7 @@ module Sauce
     MIN_MAX_LEN  = 30
     HEADER_LEN   = 60
     # task argument format
-    TASK_ARG_REGEX = /^([\w]+(-[\w])?\:?)+$/
+    TASK_ARG_REGEX = /^([\w\!]+(-[\w\!])?\:?)+$/
     # option (switch) argument format
     OPTION_ARG_REGEX = /^-.+/
     # environment variable argument format
@@ -25,8 +26,8 @@ module Sauce
     end
 
     def usage_str
-<<ENDSTR
-  Usage: #{PROG_NAME} [opts] [tasks]
+<<-ENDSTR
+  Usage: #{PROG_NAME} [opts] [task]
    #{PROG_NAME} -T  : List tasks
    #{PROG_NAME} -vT : List ALL tasks, including internal and those missing a description.
    #{PROG_NAME} -e  : Explain a specific task.  Show the entire description
@@ -34,7 +35,7 @@ module Sauce
   All other arguments are tasks to be executed
    #{PROG_NAME} app:env:sometask
   Environment variables can be passed as well like:
-   #{PROG_NAME} app:env:sometask VAR1=COOL  SOME_VAR="ANOTHER VALUE"   
+   #{PROG_NAME} app:env:sometask VAR1=COOL  SOME_VAR="SOME VALUE"
 ENDSTR
     end
 
@@ -61,6 +62,7 @@ ENDSTR
 
       found_cookable = nil
       # IF task matches a cookable, serve it up
+      # <cookable:namespace>:<task:namespace>
       if task_name
         # Passed task matches a cookable? serve it
         # and modify task name to equal what's after the cookable namespace
@@ -71,13 +73,18 @@ ENDSTR
           task_ns.unshift(cookable_ns.pop) if !found_cookable
         end
         if found_cookable
-          puts "Serving #{found_cookable.namespace}" rescue nil
+          puts "Serving #{found_cookable.namespace}"
           config = found_cookable.serve
           task_name = task_ns.join(":")
         end
       end
 
-      if opt_args.find {|arg| ["-T","-vT","-vvT"].include?(arg) } # list tasks
+      # Process ARGS
+      if opt_args.find {|arg| ["-v","--version"].include?(arg) }
+        # print version
+        puts Sauce::Version
+      elsif opt_args.find {|arg| ["-T","-vT","-vvT"].include?(arg) }
+        # list tasks
         opts = {
           :pattern => task_name, 
           :namespace_prefix => (found_cookable ? found_cookable.namespace : nil),
@@ -85,18 +92,21 @@ ENDSTR
         }
         task_list(config, opts)
         exit 0
-      elsif opt_args.include?("-e") # explain task
+      elsif opt_args.include?("-e")
+        # explain task
         opts = {
           :namespace_prefix => (found_cookable ? found_cookable.namespace : nil)
         }
         explain_task(config, task_name, opts)
-      elsif opt_args.include?("-h") || opt_args.include?("--help") # help
+      elsif opt_args.include?("-h") || opt_args.include?("--help")
+        # help
         puts usage_str
-      else # execute task
+      else
+        # execute task!
         begin
           task_name = "default" if task_name.to_s == ""
           config.trigger(:load)
-          config.logger.level = 5
+          #config.logger.level = 5
           config.find_and_execute_task(task_name, :before => :start, :after => :finish)
           config.trigger(:exit)
           exit 0
@@ -186,17 +196,6 @@ ENDSTR
       end
     end
 
-    def handle_error(error)
-      case error
-      when Net::SSH::AuthenticationFailed
-        abort "authentication failed for `#{error.message}'"
-      when Capistrano::Error
-        abort(error.message)
-      else raise error
-      end
-    end
-
-
     def format_text(text) #:nodoc:
       formatted = ""
       text.each_line do |line|
@@ -224,6 +223,17 @@ ENDSTR
       end
       @output_columns
     end
+    
+    def handle_error(error)
+      case error
+      when Net::SSH::AuthenticationFailed
+        abort "authentication failed for `#{error.message}'"
+      when Capistrano::Error # , Sauce::Error
+        abort(error.message)
+      else raise error
+      end
+    end
+
   end
 
 end

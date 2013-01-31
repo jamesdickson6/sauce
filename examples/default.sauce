@@ -3,9 +3,10 @@ Sauce.brew(appname) do |app|
   app.load do
     # Load Recipes
     load("capistrano/recipes/standard") # invoke and shell tasks
-    load("sauce/recipes/app/base") # default deployment tasks
-    load("sauce/recipes/setup") # default environment setup tasks
+    load("sauce/recipes/ssh") # default deployment tasks
+    load("sauce/recipes/deploy") # default environment setup tasks
     # Configure application...
+    _cset :user, `whoami`
     set :application, appname
     set :scm, "git"
     set :repository, "git@github.com:yourCompany/#{appname}.git"

@@ -1,30 +1,44 @@
 require 'sauce'
 require 'capistrano/configuration'
 module Sauce
-  # Mix this in to your class if you want it to be able to load a Capistrano configuration
+  #############################################
+  # Cookable: 
+  #   Mixin to allow your class to function as a Capistrano::Configuration
+  #############################################
   module Cookable
-
     module ClassMethods
+      def standard_recipes
+        ['sauce/recipes/standard']
+      end
     end
-
     def self.included(base)
       base.extend(ClassMethods)
 
       base.class_eval do
         attr_reader :namespace
-        attr_reader :cap_config
-        attr_reader :recipes
+        attr_reader :recipes # other recipes to cook 
         attr_reader :cooked
-
-        # capistrano configuration for this object
+        # Capistrano::Configuration for this object
+        # Generated based on the current Sauce::Configuration
         def cap_config
-          @cap_config ||= Sauce.new_capistrano_config()
+          @cap_config ||= Sauce.instance.new_capistrano_config()
+        end
+        alias :capistrano :cap_config
+
+        # Override this in your class with a recipe that accepts itself
+        # must return a Proc
+        def base_recipe()
+          warn "#{self} hasn't been overridden to return a Proc!!"
+          lambda {
+            # put your capistrano config and tasks in here
+          }
         end
 
         # Array of recipes in the form of a String (filename) or Procs
         def recipes
           @recipes ||= []
         end
+      
 
         # This is meant to mimic the behavior of Capistrano::Configuration.load
         # It actually just stores recipes for cooking (loading into configuration) later on
@@ -38,8 +52,8 @@ module Sauce
         #   load(:file => "recipe"):
         #     same as above
         #
-        #   load(:proc => "recipe"):
-        #     same as above
+        #   load(:proc => lambda {...}):
+        #     Load the proc in the context of the configuration.
         #
         #   load { ... }
         #     Load the block in the context of the configuration.
@@ -57,22 +71,21 @@ module Sauce
         end
         alias :add_recipe :load
 
+
         # load capistrano configuration with recipes
-        def cook
-          if defined?(self.class::STANDARD_RECIPES)
-            self.class::STANDARD_RECIPES.each do |recipe|
-              if recipe.is_a?(Proc)
-                self.cap_config.load(:proc => recipe)
-              else # assume recipe filename
-                self.cap_config.load(:file => recipe)
-              end
-            end
-          end          
-          self.recipes.each do |recipe|
-            if recipe.is_a?(Proc)
-              self.cap_config.load(:proc => recipe)
+        # if a block is passed, it is cooked too
+        def cook(&block)
+          the_recipes = [
+                         self.class.standard_recipes,
+                         self.base_recipe,
+                         self.recipes,
+                         (block_given? ? block : nil)
+                        ].flatten.compact.uniq
+          the_recipes.each do |r|
+            if r.is_a?(Proc)
+              self.cap_config.load(:proc => r)
             else # assume recipe filename
-              self.cap_config.load(:file => recipe)
+              self.cap_config.load(:file => r)
             end
           end
           @cooked = true
@@ -84,6 +97,28 @@ module Sauce
           cook unless @cooked
           Sauce.current = self
           self.cap_config
+        end
+
+        # Proxy for capistrano config method
+        def execute_task(task)
+          cur_sauce = Sauce.current
+          begin
+            self.serve
+            self.cap_config.execute_task(task)
+          ensure
+            cur_sauce.serve if cur_sauce
+          end
+        end
+
+        # Proxy for capistrano config method
+        def find_and_execute_task(task, hooks={})
+          cur_sauce = Sauce.current
+          begin
+            self.serve
+            self.cap_config.find_and_execute_task(task, hooks)
+          ensure
+            cur_sauce.serve if cur_sauce
+          end
         end
 
       end

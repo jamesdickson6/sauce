@@ -2,20 +2,20 @@ require 'capistrano'
 require 'forwardable'
 require 'sauce/cookable'
 require 'sauce/configuration'
-# Cook application recipes and serve them to Capistrano
+require 'sauce/software'
+#############################################
+# Sauce
+#   Cook application:environment Capistrano recipes and serve them up
+#############################################
 module Sauce
   extend Forwardable
-  # extension for finding configuration files
-  SAUCE_FILE_EXTENSION = ".sauce".freeze
-  SAUCE_FILE_DEPTH = 2.freeze
-  # Load paths for sauce recipes
-  RECIPE_LOAD_PATHS = [File.expand_path(File.join(File.dirname(__FILE__))),
-                       File.expand_path(File.join(File.dirname(__FILE__), "sauce/recipes")),
-                       File.join(Gem::Specification.find_by_name("capistrano").gem_dir, "lib")
-                      ].freeze
 
   # Indicates a problem with sauce configuration
   class ConfigError < StandardError; end
+
+  #############################################
+  # Accessing the current Sauce::Configuration
+  #############################################
 
   # Holds current Sauce::Configuration, you'll probably never use more than one
   def instance
@@ -32,43 +32,26 @@ module Sauce
   module_function :instance, :applications, :[], :application, :brew, :cook, :serve
 
 
-  # Holds current Sauce::Cookable that's been served
+  #############################################
+  # Accessing the current Cookable
+  #############################################
+
+
+  # Holds current Sauce::Cookable that has been served
   def current
     Thread.current[:cookable] ||= instance
   end
 
+  # don't call this, just call .serve() on your Cookable
   def current=(cookable) #:nodoc:
     raise ArgumentError.new("Sauce.current= expects a Cookable and got a #{cookable.class} instead!") unless cookable.is_a?(Cookable)
-    Thread.current[:cookable] ||= cookable
+    Thread.current[:cookable] = cookable
   end
-  # Proxy to currently served Capistrano config
-  def capistrano
-    current.cap_config
-  end
-  module_function :current, :current=, :capistrano
 
   # some well-known friendly module methods, delegated to current capistrano config
-  def_delegators :capistrano, :find_and_execute_task
-  module_function :capistrano, :find_and_execute_task
-
-  # find sauce files, avoid looking too deep
-  def find_sauce_files(cwd=Dir.pwd, depth=SAUCE_FILE_DEPTH)
-    files = []
-    (0..depth).each do |i|
-      prefix = "*/"*i
-      files << Dir.glob(File.join(cwd, "#{prefix}*#{SAUCE_FILE_EXTENSION}"))
-    end
-    return files.flatten.uniq
-  end
+  def_delegators :current, :find_and_execute_task, :execute_task
+  module_function :current, :current=, :find_and_execute_task, :execute_task
 
 
-  def new_capistrano_config(opts={})
-    # JD: Should maybe parse ARGV here?
-    c = Capistrano::Configuration.new(opts)
-    RECIPE_LOAD_PATHS.each {|d| c.load_paths << d }
-    return c
-  end
-
-  module_function :find_sauce_files, :new_capistrano_config
 
 end

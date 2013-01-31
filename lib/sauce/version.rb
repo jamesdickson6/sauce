@@ -1,3 +1,3 @@
 module Sauce
-  Version = "0.1.2".freeze
+  Version = "1.0.0".freeze
 end
